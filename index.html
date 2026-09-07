@@ -4,9 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Food Catcher</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.js"></script>
     <style>
       :root {
         --sky-top: #8ad0ff;
@@ -303,6 +301,13 @@
         color: #0f2d44;
       }
 
+      .camera-status {
+        min-height: 1.2em;
+        margin-top: 8px;
+        color: #214664;
+        font-size: 0.84rem;
+      }
+
       .difficulty-control {
         display: inline-flex;
         align-items: center;
@@ -366,6 +371,7 @@
             <option value="hard">Hard</option>
           </select>
         </label>
+        <div id="cameraStatus" class="camera-status" role="status" aria-live="polite"></div>
       </div>
     </div>
 

@@ -7,6 +7,7 @@ const gameOverOverlay = document.getElementById('gameOverOverlay');
 const restartButton = document.getElementById('restartButton');
 const difficultySelect = document.getElementById('difficultySelect');
 const videoElement = document.getElementById('webcamVideo');
+const cameraStatus = document.getElementById('cameraStatus');
 
 const healthyFoods = ['🍎', '🥦', '🥕', '🍌', '🍏', '🍉'];
 const junkFoods = ['🍕', '🍟', '🍩', '🥤'];
@@ -240,43 +241,51 @@ difficultySelect.addEventListener('change', () => {
 });
 
 async function initHandTracking() {
-  if (!window.Hands || !window.Camera) {
-    console.warn('MediaPipe Hands not ready yet');
+  if (!window.FilesetResolver || !window.HandLandmarker) {
+    cameraStatus.textContent = 'Hand tracking library could not load.';
     return;
   }
 
-  const handLandmarker = new Hands({
-    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
-  });
-
-  handLandmarker.setOptions({
-    maxNumHands: 1,
-    modelComplexity: 1,
-    minDetectionConfidence: 0.5,
-    minTrackingConfidence: 0.5,
-  });
-
-  handLandmarker.onResults((results) => {
-    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-      const wrist = results.multiHandLandmarks[0][0];
-      wristXNormalized = 1 - wrist.x;
-      updateCatcherFromHand();
-    }
-  });
-
-  const camera = new Camera(videoElement, {
-    onFrame: async () => {
-      await handLandmarker.send({ image: videoElement });
-    },
-    width: 640,
-    height: 480,
-  });
-
   try {
-    await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-    camera.start();
+    cameraStatus.textContent = 'Requesting camera access...';
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    videoElement.srcObject = stream;
+    await videoElement.play();
+
+    const vision = await FilesetResolver.forVisionTasks(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm'
+    );
+    const handLandmarker = await HandLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath:
+          'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+        delegate: 'CPU',
+      },
+      runningMode: 'VIDEO',
+      numHands: 1,
+      minHandDetectionConfidence: 0.5,
+      minHandPresenceConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+
+    cameraStatus.textContent = 'Camera ready. Show your hand to move the basket.';
+
+    function processVideoFrame() {
+      if (videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && !isGameOver) {
+        const results = handLandmarker.detectForVideo(videoElement, performance.now());
+        if (results.landmarks && results.landmarks.length > 0) {
+          const wrist = results.landmarks[0][0];
+          wristXNormalized = 1 - wrist.x;
+          updateCatcherFromHand();
+        }
+      }
+      requestAnimationFrame(processVideoFrame);
+    }
+
+    processVideoFrame();
   } catch (error) {
-    console.error('Camera access was denied or unavailable:', error);
+    cameraStatus.textContent = 'Camera or CPU hand tracking is unavailable.';
+    console.error('Hand tracking initialization failed:', error);
   }
 }
 
