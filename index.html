@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Food Catcher</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <style>
+      :root {
+        --sky-top: #8ad0ff;
+        --sky-bottom: #dff7ff;
+        --ground: #7acb8d;
+        --panel: rgba(255, 255, 255, 0.16);
+        --border: rgba(255, 255, 255, 0.45);
+        --catcher: #f7d26b;
+        --catcher-dark: #d39e26;
+        --shadow: rgba(32, 51, 74, 0.22);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: Arial, Helvetica, sans-serif;
+        background-color: var(--sky-bottom);
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)),
+          url('bg-img.jpg');
+        background-position: center bottom;
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-attachment: fixed;
+        color: #18314f;
+      }
+
+      .game-shell {
+        width: min(92vw, 760px);
+        background: #eaf7ff;
+        border: 2px solid var(--border);
+        border-radius: 24px;
+        box-shadow: 0 18px 45px var(--shadow);
+        backdrop-filter: blur(4px);
+        padding: 20px 20px 16px;
+      }
+
+      h1 {
+        margin: 0 0 18px;
+        text-align: center;
+        font-size: clamp(2rem, 5vw, 3rem);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #123857;
+      }
+
+      .game-area {
+        position: relative;
+        height: 520px;
+        overflow: hidden;
+        border-radius: 18px;
+        background: linear-gradient(180deg, var(--sky-top), var(--sky-bottom));
+        border: 2px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .game-area::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.5);
+      }
+
+      .sky-decor {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .cloud {
+        position: absolute;
+        width: 120px;
+        height: 40px;
+        background: rgba(255, 255, 255, 0.38);
+        border-radius: 999px;
+        box-shadow: 30px 12px 0 8px rgba(255,255,255,0.28), 70px 0 0 6px rgba(255,255,255,0.26);
+      }
+
+      .cloud.one {
+        top: 42px;
+        left: 60px;
+      }
+
+      .cloud.two {
+        top: 110px;
+        right: 80px;
+        transform: scale(1.1);
+      }
+
+      .cloud.three {
+        top: 175px;
+        left: 42%;
+        transform: scale(0.9);
+      }
+
+      .sun {
+        position: absolute;
+        top: 32px;
+        right: 60px;
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: radial-gradient(circle, #fff4a8 0%, #ffd75a 55%, #f7c948 100%);
+        box-shadow: 0 0 28px rgba(255, 220, 110, 0.8);
+      }
+
+      .ground {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 90px;
+        background: linear-gradient(180deg, #a7dd9d, var(--ground));
+        border-top: 4px solid rgba(18, 79, 39, 0.2);
+      }
+
+      .grass {
+        position: absolute;
+        inset: auto 0 80px;
+        height: 18px;
+        background: linear-gradient(90deg, rgba(62,127,72,0.3), rgba(80,171,104,0.6), rgba(62,127,72,0.3));
+      }
+
+      .catcher {
+        position: absolute;
+        bottom: 52px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 150px;
+        height: 110px;
+        border-radius: 26px 26px 18px 18px;
+        background: linear-gradient(180deg, var(--catcher), var(--catcher-dark));
+        border: 5px solid rgba(118, 86, 20, 0.45);
+        box-shadow: inset 0 -10px 0 rgba(145, 108, 28, 0.3), 0 12px 18px rgba(28, 43, 52, 0.18);
+        transition: left 0.04s linear;
+        cursor: pointer;
+      }
+
+      .catcher::before {
+        content: "";
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        top: 16px;
+        height: 18px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.25);
+      }
+
+      .catcher::after {
+        content: "";
+        position: absolute;
+        left: 20px;
+        right: 20px;
+        bottom: 12px;
+        height: 20px;
+        border-radius: 999px;
+        background: rgba(120, 86, 22, 0.2);
+      }
+
+      .catcher-badge {
+        position: absolute;
+        left: 50%;
+        top: 22px;
+        transform: translateX(-50%);
+        width: 84px;
+        height: 52px;
+        border-radius: 50% 50% 38% 38%;
+        border: 4px solid rgba(125, 92, 28, 0.42);
+        background: rgba(255,255,255,0.12);
+      }
+
+      .catcher-label {
+        position: absolute;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 2.2rem;
+        line-height: 1;
+        filter: drop-shadow(0 3px 3px rgba(0,0,0,0.18));
+      }
+
+      .food-item {
+        position: absolute;
+        top: -40px;
+        left: 0;
+        width: 36px;
+        height: 36px;
+        display: grid;
+        place-items: center;
+        font-size: 2rem;
+        line-height: 1;
+        filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.18));
+        user-select: none;
+        pointer-events: none;
+      }
+
+      .hud {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        display: flex;
+        gap: 10px;
+        z-index: 15;
+      }
+
+      .hud-item {
+        min-width: 110px;
+        padding: 8px 12px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.62);
+        border: 1px solid rgba(13, 53, 79, 0.12);
+        box-shadow: 0 8px 18px rgba(13, 53, 79, 0.08);
+        font-size: 0.9rem;
+        letter-spacing: 0.04em;
+        color: #214664;
+      }
+
+      .hud-item span {
+        display: block;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        opacity: 0.8;
+      }
+
+      .hud-item strong {
+        display: block;
+        margin-top: 2px;
+        font-size: 1.3rem;
+        color: #0f2d44;
+      }
+
+      .game-over {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(11, 25, 37, 0.58);
+        z-index: 25;
+      }
+
+      .game-over.show {
+        display: flex;
+      }
+
+      .game-over-panel {
+        padding: 30px 26px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.9);
+        text-align: center;
+        box-shadow: 0 18px 40px rgba(18, 32, 46, 0.18);
+      }
+
+      .game-over-panel h2 {
+        margin: 0 0 18px;
+        font-size: 2rem;
+        color: #1e4667;
+      }
+
+      .game-over-panel button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #ffd86d, #f7bb34);
+        color: #173a52;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      #webcamVideo {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .controls {
+        margin-top: 8px;
+        text-align: center;
+        font-size: 0.96rem;
+        letter-spacing: 0.04em;
+        color: #214664;
+      }
+
+      .controls strong {
+        color: #0f2d44;
+      }
+
+      .difficulty-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: 14px;
+      }
+
+      .difficulty-control select {
+        padding: 4px 8px;
+        border: 1px solid rgba(13, 53, 79, 0.22);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.75);
+        color: #214664;
+        font: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <video id="webcamVideo" autoplay playsinline muted></video>
+
+    <div class="game-shell">
+      <h1>Food Catcher</h1>
+
+      <div class="game-area" id="gameArea" aria-label="Food catcher game area">
+        <div class="hud" aria-live="polite">
+          <div class="hud-item">
+            <span>Score</span>
+            <strong id="scoreValue">0</strong>
+          </div>
+          <div class="hud-item">
+            <strong id="comboValue">Combo 0</strong>
+          </div>
+          <div class="hud-item">
+            <span>Life</span>
+            <strong id="lifeValue">3</strong>
+          </div>
+        </div>
+
+        <div class="grass" aria-hidden="true"></div>
+        <div class="catcher" id="catcher" aria-label="Catcher">
+          <div class="catcher-badge"></div>
+          <div class="catcher-label">🧺</div>
+        </div>
+        <div class="ground" aria-hidden="true"></div>
+
+        <div id="gameOverOverlay" class="game-over" aria-live="assertive">
+          <div class="game-over-panel">
+            <h2>Game Over</h2>
+            <button id="restartButton" type="button">Restart</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <strong>Move:</strong> Hand tracking
+        <label class="difficulty-control" for="difficultySelect">
+          <strong>Difficulty:</strong>
+          <select id="difficultySelect">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <script src="script.js" defer></script>
+  </body>
+</html>
